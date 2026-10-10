@@ -1,0 +1,12 @@
+[project]
+name = "a-ponte"
+version = "1.0.0"
+description = "A Ponte: agente A2A host MCP por dentro (T2) + servidor MCP (T1)"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp==2.3.0",
+    "uvicorn==0.54.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
