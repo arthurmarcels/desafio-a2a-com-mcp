@@ -159,12 +159,12 @@ Divergências SDK × spec e spikes ficaram registrados em
 
 ## 4. Saída do validador
 
-Executado em 2026-10-10 a partir de um clone limpo da branch, com os dois
+Executado em 2026-10-13 a partir de um clone limpo da branch, com os dois
 processos recém-iniciados (`uv sync` + `REQUEST_STATE_SECRET` gerada na hora):
 
 ```text
 $ python3 validador/validar.py --agente http://localhost:7300 --mcp http://localhost:7301
-trace-id desta execucao: e0c991b6176ba822c2803c64b6dfd4d4
+trace-id desta execucao: 18758aefe7cfb5ef385188fbce8b9980
 procure esse valor no stderr do servidor MCP para conferir a propagacao do traceparent.
 
 PASS 01 tools/list traz as tres tools
@@ -220,7 +220,7 @@ passos críticos, coletadas na mesma sessão do clone limpo:
 request method=tools/list id=1 traceparent=-          <- agente, no startup
 request method=resources/read id=2 traceparent=-      <- agente, no startup
 ...                                                   <- validador: checks 01-20 (HTTP direto)
-request method=tools/call id=3 traceparent=00-e0c991b6...-01   <- primeiro tools/call do agente
+request method=tools/call id=3 traceparent=00-18758aefe7cfb5ef385188fbce8b9980-79bbe386d5eae12e-01   <- primeiro tools/call do agente
 ```
 
 A descoberta é exigida em código antes de qualquer chamada:
@@ -233,12 +233,12 @@ A descoberta é exigida em código antes de qualquer chamada:
 
 ```text
 $ python3 validador/validar.py ...
-trace-id desta execucao: e0c991b6176ba822c2803c64b6dfd4d4
+trace-id desta execucao: 18758aefe7cfb5ef385188fbce8b9980
 
 # stderr do servidor MCP:
-request method=tools/call id=3 traceparent=00-e0c991b6176ba822c2803c64b6dfd4d4-c7347a80510c719f-01
-request method=tools/call id=4 traceparent=00-e0c991b6176ba822c2803c64b6dfd4d4-c7347a80510c719f-01
-request method=tools/call id=5 traceparent=00-e0c991b6176ba822c2803c64b6dfd4d4-c7347a80510c719f-01
+request method=tools/call id=3 traceparent=00-18758aefe7cfb5ef385188fbce8b9980-79bbe386d5eae12e-01
+request method=tools/call id=4 traceparent=00-18758aefe7cfb5ef385188fbce8b9980-79bbe386d5eae12e-01
+request method=tools/call id=5 traceparent=00-18758aefe7cfb5ef385188fbce8b9980-79bbe386d5eae12e-01
 ```
 
 O trace-id do header `traceparent` do `SendMessage` A2A chega idêntico no
@@ -250,21 +250,21 @@ preservado).
 <summary>Passo 11 — <code>requestState</code> adulterado → <code>-32602</code></summary>
 
 ```json
-{"jsonrpc":"2.0","id":102,"error":{"code":-32602,"message":"Invalid or expired requestState","data":{"reason":"invalid_request_state"}}}
+{"jsonrpc":"2.0","id":"tamper-1","error":{"code":-32602,"message":"Invalid or expired requestState","data":{"reason":"invalid_request_state"}}}
 ```
 
-HTTP 400. Um único caractere trocado no fim do `requestState` (último `w` →
-`A`) derruba a verificação AEAD — o tag não bate e o estado é rejeitado.
+HTTP 400. Um único caractere trocado no fim do `requestState` (último `A` →
+`B`) derruba a verificação AEAD — o tag não bate e o estado é rejeitado.
 </details>
 
 <details>
 <summary>Passo 12 — retry válido após restart do servidor MCP</summary>
 
 ```text
-requestState capturado (50 chars): v1.GENUSucDD6Dx9Ab31ZNq_J5Zmn0GdtI9WXTZfP5CP58ufTh...
-servidor MCP reiniciado (novo pid: 2175454)
+requestState capturado (377 chars): v1.vVuu48iTvhsW7UGEZYA...
+servidor MCP reiniciado (mesma REQUEST_STATE_SECRET reexportada antes de subir)
 
-{"jsonrpc":"2.0","id":202,"result":{"content":[{"text":"{\n  \"reserva\": \"res-0003\",\n  \"reservado\": true,\n  \"sala\": \"sala-fusca\", ...}","type":"text"}],
+{"jsonrpc":"2.0","id":"restart-2","result":{"content":[{"text":"{\n  \"reserva\": \"res-0003\",\n  \"reservado\": true,\n  \"sala\": \"sala-fusca\",\n  \"inicio\": \"2026-11-03T14:00:00-03:00\",\n  \"fim\": \"2026-11-03T15:00:00-03:00\",\n  \"responsavel\": \"Marty\",\n  \"politica\": \"2026-11-01\",\n  \"motivo\": null}\n","type":"text"}],
  "isError":false,"resultType":"complete","structuredContent":{"reserva":"res-0003","reservado":true,"sala":"sala-fusca",
  "inicio":"2026-11-03T14:00:00-03:00","fim":"2026-11-03T15:00:00-03:00","responsavel":"Marty","politica":"2026-11-01","motivo":null}, ...}}
 ```
@@ -277,7 +277,7 @@ a reserva concluiu com os argumentos originais selados (não os do retry).
 <summary>Passo 13 — conflito sem capability de elicitation → <code>-32021</code></summary>
 
 ```json
-{"jsonrpc":"2.0","id":301,"error":{"code":-32021,"message":"Client did not declare the form elicitation capability required by resolver '__main__:escolha_de_sala'","data":{"requiredCapabilities":{"elicitation":{"form":{}}}}}}
+{"jsonrpc":"2.0","id":"sem-cap","error":{"code":-32021,"message":"Client did not declare the form elicitation capability required by resolver '__main__:escolha_de_sala'","data":{"requiredCapabilities":{"elicitation":{"form":{}}}}}}
 ```
 
 HTTP 400, com `data.requiredCapabilities` listando o que faltou.
@@ -288,9 +288,9 @@ HTTP 400, com `data.requiredCapabilities` listando o que faltou.
 
 ```text
 # SendMessage A2A (sala-garagem 14h-15h, conflito) → Task INPUT_REQUIRED
-request method=tools/call id=3 traceparent=-
-# SendMessage de continuação (escolha=sala-mirante) → Task COMPLETED, res-0004
-request method=tools/call id=4 traceparent=-
+request method=tools/call id=3 traceparent=00-18758aefe7cfb5ef385188fbce8b9980-79bbe386d5eae12e-01
+# escolha fora do enum repetiu a pausa (id=4) e a continuação concluiu (id=5)
+request method=tools/call id=5 traceparent=00-18758aefe7cfb5ef385188fbce8b9980-79bbe386d5eae12e-01
 ```
 
 Dois `tools/call` distintos para a mesma Task, ids diferentes — o retry nasce
